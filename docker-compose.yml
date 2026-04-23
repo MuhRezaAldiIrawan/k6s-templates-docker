@@ -47,8 +47,6 @@ services:
     container_name: k6-runner
     networks:
       - k6-network
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     ports:
       - "6565:6565"
     environment:
