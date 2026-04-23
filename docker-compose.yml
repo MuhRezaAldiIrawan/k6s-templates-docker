@@ -1,0 +1,64 @@
+networks:
+  k6-network:
+    driver: bridge
+
+volumes:
+  influxdb_data:
+  grafana_data:
+
+services:
+
+  # InfluxDB — Database untuk menyimpan hasil k6
+  influxdb:
+    image: influxdb:1.8
+    container_name: k6-influxdb
+    networks:
+      - k6-network
+    ports:
+      - "8086:8086"
+    env_file:
+      - config/influxdb.env
+    volumes:
+      - influxdb_data:/var/lib/influxdb
+    restart: unless-stopped
+
+  # Grafana — Dashboard visualisasi
+  grafana:
+    image: grafana/grafana:latest
+    container_name: k6-grafana
+    networks:
+      - k6-network
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000" # Port Grafana dapat dikonfigurasi melalui variabel lingkungan GRAFANA_PORT, default 3000
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_AUTH_DISABLE_LOGIN_FORM=true
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      - influxdb
+    restart: unless-stopped
+
+  # k6 — Load testing tool
+  k6:
+    image: grafana/k6:latest
+    container_name: k6-runner
+    networks:
+      - k6-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "6565:6565"
+    environment:
+      - K6_OUT=influxdb=http://influxdb:8086/k6
+      - BASE_URL=${BASE_URL:-https://test.k6.io}
+    volumes:
+      - ./scripts:/scripts
+      - ./data:/data
+    depends_on:
+      - influxdb
+    # k6 tidak auto-start, dijalankan manual
+    profiles:
+      - test
